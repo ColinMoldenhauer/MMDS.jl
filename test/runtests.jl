@@ -1,6 +1,6 @@
-using MMDS
 using Test
+using MMDS
 
-@testset "MMDS.jl" begin
-    # Write your tests here.
+@testset "Test MMDS.jl Tutorial" begin
+    include("functions.jl")
 end
