@@ -1,6 +1,4 @@
 module MMDS
-
-# Write your package code here.
     using StatsBase # import other packages that your package needs 
 
     include("functions.jl") # include source code files where the actual functions of your project are 

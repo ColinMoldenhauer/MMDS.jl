@@ -6,7 +6,7 @@ DocMeta.setdocmeta!(MMDS, :DocTestSetup, :(using MMDS); recursive=true)
 makedocs(;
     modules=[MMDS],
     authors="Colin Moldenhauer <colin.moldenhauer@tum.de>",
-    repo="https://github.com/ColinMoldenhauer/MMDS.jl/",
+    repo="https://github.com/ColinMoldenhauer/MMDS.jl/blob/{commit}{path}#{line}",
     sitename="MMDS.jl",
     format=Documenter.HTML(;
     prettyurls=get(ENV, "CI", "false") == "true",
@@ -14,6 +14,6 @@ makedocs(;
     ),
     pages=[
         "Home" => "index.md",
-        "Functions" => "functions.md"
+        "Second Page" => "second_page.md",
     ],
 )

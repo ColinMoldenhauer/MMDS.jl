@@ -3,6 +3,10 @@ uuid = "56d65386-1d25-49eb-89cc-812a165fab96"
 authors = ["Colin Moldenhauer <colin.moldenhauer@tum.de>"]
 version = "1.0.0-DEV"
 
+[deps]
+Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
+StatsBase = "2913bbd2-ae8a-5f71-8c99-4fb6c76f3a91"
+
 [compat]
 julia = "1.9.3"
 
