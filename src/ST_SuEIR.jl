@@ -41,7 +41,7 @@ need
 """
 
 
-struct ST_SuEIR{T<:AbstractFloat} <: AbstractAutoODEModel
+struct ST_SuEIR{T<:Real} <: AbstractAutoODEModel
     # learnable parameters
     β::AbstractArray{T}
     γ::AbstractArray{T}
