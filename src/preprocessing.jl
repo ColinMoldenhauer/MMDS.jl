@@ -68,3 +68,30 @@ function get_covid_IRD(data_dir::String; normalize::Union{String, Nothing}=nothi
 
     return dates, states, Matrix(infected), Matrix(recovered), Matrix(deaths)
 end
+
+
+"""
+    prepare
+"""
+# TODO: parametrize and doc
+function prepare_data(I, R, D, N_states; fill_unknowns=true)
+    N_t = size(I, 2)
+    t = 0:(N_t-1)
+
+    if fill_unknowns
+        N_ode = 6
+    else
+        N_ode = 3
+    end
+
+    snapshots = rand(N_states, N_ode, N_t)     # TODO: type
+    # TODO: include in loading method?
+    # u0 (n_states, n_ode)
+    # I (n_states, t)
+    # goal (n_states, n_ode/n_known, t)
+
+    for (i_data, data) in enumerate([I, R, D])
+        snapshots[:, i_data, :] = data[1:N_states, :]
+    end
+    return snapshots, t
+end
