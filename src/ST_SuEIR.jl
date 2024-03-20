@@ -7,7 +7,7 @@ import Base: iterate
 
 function f_ST_SuEIR(u, p, t)
     β, γ, μ, σ, a, b, A = p
-    S, E, U, I, R, D = [reshape(u_, (:, 1)) for u_ in eachcol(u)]
+    S, E, U, I, R, D = eachcol(u)
 
     transm = A * (I + E)
     dS = @. - β * transm * S

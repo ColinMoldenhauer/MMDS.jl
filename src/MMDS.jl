@@ -10,11 +10,10 @@ module MMDS
     include("AutoODE.jl")
     include("ST_SuEIR.jl")
     include("visualization.jl")
-    
     # export some of the functions that the users can use directly
     export read_covid_data, get_covid_IRD, prepare_data
+    export AbstractAutoODEModel, ChaoticNDE, loss_covid
     export f_ST_SuEIR, ST_SuEIR, create_ST_SuEIR_initial_conditions
-    export get_model, AbstractAutoODEModel, ChaoticNDE
     export plot_covid_data, plot_IRD
 
     function __init__() # OPTIONAL: this special function is always executed when the module is loaded
