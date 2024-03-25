@@ -1,11 +1,33 @@
 using Flux, Optimisers
 using ChaoticNDETools
-using MMDS: AbstractAutoODEModel
 
 import Base: iterate
 
+"""
+    f_ST_SuEIR(u, p, t)
 
+RHS of the ST-SuEIR model.
+"""
 function f_ST_SuEIR(u, p, t)
+    θ, q = p
+    β, γ, μ, σ, a, b, A = θ
+    S, E, U, I, R, D = eachcol(u)
+
+    transm = A * (I + E)
+    dS = @. - β * transm * S
+    dE = @. β * transm * S - σ*E
+    dU = @. (1-γ)*σ*E
+
+    dI = @. μ*σ*E - γ*I
+    dR = @. γ*I
+    r = @. a*t + b
+    dD = @. r * dR
+
+    du = [dS dE dU dI dR dD]
+    return du
+end
+
+function f_ST_SuEIR_old(u, p, t)
     β, γ, μ, σ, a, b, A = p
     S, E, U, I, R, D = eachcol(u)
 
@@ -59,11 +81,11 @@ Flux.@layer ST_SuEIR trainable=(β, γ, μ, σ, a, b, A,)
 
 # fwd
 function (m::ST_SuEIR)(u, p, t)
-    return f_ST_SuEIR(u, p, t)
+    return f_ST_SuEIR_old(u, p, t)
 end
 
 function (m::ST_SuEIR)(u, t)
-    return f_ST_SuEIR(u, [m...], t)
+    return f_ST_SuEIR_old(u, [m...], t)
 end
 
 function iterate(m::ST_SuEIR, state=1)
@@ -71,8 +93,12 @@ function iterate(m::ST_SuEIR, state=1)
 end
 
 
+"""
+    create_ST_SuEIR_dummy_data(N_states)
 
-function create_ST_SuEIR_initial_conditions(N_states)
+Utility function to create random dummy data for testing ST_SuEIR.
+"""
+function create_ST_SuEIR_dummy_data(N_states)
     # initial conditions
     S₀ = rand(N_states, 1)
     E₀ = rand(N_states, 1)
