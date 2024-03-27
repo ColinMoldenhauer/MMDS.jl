@@ -19,6 +19,12 @@ StatsBase = "2913bbd2-ae8a-5f71-8c99-4fb6c76f3a91"
 
 [compat]
 DifferentialEquations = "7"
+Plots = "1"
+Flux = "0.14"
+DataFrames = "1"
+CSV = "0.10"
+Documenter = "1"
+StatsBase = "0.34"
 julia = "1.9.3"
 
 [extras]
