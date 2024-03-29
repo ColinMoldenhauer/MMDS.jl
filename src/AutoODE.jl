@@ -92,7 +92,7 @@ end
 
 Create initial data for ST_SuEIR unknowns.
 """
-function create_ST_SuEIR_initial_conditions(T::Type, N_states::Int=56)
+function create_ST_SuEIR_initial_conditions(T::Type, N_states::Int=56, low_rank=Union{Int, Nothing})
     # parameters
     β = rand(T, N_states, 1)
     γ = rand(T, N_states, 1)
@@ -100,10 +100,16 @@ function create_ST_SuEIR_initial_conditions(T::Type, N_states::Int=56)
     σ = rand(T, N_states, 1)
     a = rand(T, N_states, 1)
     b = rand(T, N_states, 1)
-    A = rand(T, N_states, N_states)
 
-    θ = [β, γ, μ, σ, a, b, A]
-
+    # optionally use a low rank approximation of C
+    if isnothing(low_rank)
+        C = rand(T, N_states, N_states)
+        θ = [β, γ, μ, σ, a, b, C]
+    else
+        B = rand(T, N_states, low_rank)
+        B2 = rand(T, low_rank, N_states)
+        θ = [β, γ, μ, σ, a, b, B, B2]
+    end
 
     # initial conditions
     S₀ = fill(T(0.5), N_states, 1)
@@ -116,29 +122,28 @@ function create_ST_SuEIR_initial_conditions(T::Type, N_states::Int=56)
 end
 
 
-struct AutoODE_ST_SuEIR{T<:Real} <: AbstractAutoODEModel
-    y₀::AbstractArray{T}                    # known initial conditions
-    u₀::AbstractArray{T}                    # unknown, learnable initial conditions
+struct ST_SuEIR{T<:Real} <: AbstractAutoODEModel
+    y₀::Matrix{T}                           # known initial conditions
+    u₀::Matrix{T}                           # unknown, learnable initial conditions
 
-    θ::AbstractArray{Matrix{Float64}}       # learnable parameters
-    q::AbstractArray                        # known parameters
+    θ::Vector{Matrix{T}}                    # learnable parameters
+    q::Vector{Matrix{T}}                    # constant parameters
 
-
-    # constructor
-    function AutoODE_ST_SuEIR(y₀::AbstractArray{T}; q::AbstractArray=[]) where T<:Real
-        N_states = size(y₀, 1)
-        u₀, θ = create_ST_SuEIR_initial_conditions(T, N_states)
-        new{T}(y₀, u₀, θ, q)
-    end
-
-    function AutoODE_ST_SuEIR(y, u, thet, p)
-        new{typeof(y[1])}(y, u, thet, p)
-    end
+    f::Function                             # ODE right hand side: f(u, θ, t, q)
 end
 
-@Flux.layer AutoODE_ST_SuEIR trainable=(u₀, θ,)
+# constructor
+function ST_SuEIR(y₀::AbstractArray{T}; adjacency::Union{Matrix, Nothing}=nothing, low_rank::Union{Int, Nothing}=nothing) where T<:Real
+    N_states = size(y₀, 1)
+    adjacency = isnothing(adjacency) ? ones(T, (N_states, N_states)) : adjacency
+    @assert N_states == size(adjacency, 1) == size(adjacency, 2) "Adjacency matrix of size $(size(adjacency)) must be of size ($N_states, $N_states)."
+    u₀, θ = create_ST_SuEIR_initial_conditions(T, N_states, low_rank)
+    f = isnothing(low_rank) ? f_ST_SuEIR : f_ST_SuEIR_low_rank
+    ST_SuEIR{T}(y₀, u₀, θ, [adjacency], f)
+end
 
-function (a::AutoODE_ST_SuEIR)(u, t)
-    p = [a.θ, a.q]
-    f_ST_SuEIR(u, p, t)
+@Flux.layer ST_SuEIR trainable=(u₀, θ,)
+
+function (a::ST_SuEIR)(u, t)
+    a.f(u, a.θ, t, a.q)
 end
