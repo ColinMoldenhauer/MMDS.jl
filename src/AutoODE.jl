@@ -5,86 +5,86 @@ using DifferentialEquations
 import ChaoticNDETools: ChaoticNDE
 
 
-# TODO: parametrize
-# TODO: make p0 optional? if m=Dense(), no params needed -> include initialization in ST_SuEIR.constructor
 """
-ChaoticNDE(m::Type{M}, p0, u0, tspan; alg=RK4(), kwargs...) where {M <: AbstractAutoODEModel}
+    wrap_model(model::M; alg=RK4(), kwargs...) where {M <: Union{AbstractAutoODEModel, AbstractNeuralODEModel}}
 
-Utility overload of the constructor of `ChaoticNDE`.
-
-# Arguments
-- `m`: Custom Flux model type that allows for differentiation of its parameters.
-- `p0`: Initial parameters of m.
-- `u0`: Initial conditions of the trajectory to be fitted.
-- `tspan`: Timespan for which m's underlying DE is to be solved.
-- `alg`: DE solver used to solve the trajectory.
-- `kwargs`: Additional parameters for initalization of `ChaoticNDE`.
+Wrap `model` in a `ChaoticNDE` and additionally return the re-transformation `re`.
 """
-function ChaoticNDE(model::M, tspan; alg=RK4(), kwargs...) where {M <: AbstractAutoODEModel}
+function wrap_model(model::M; alg=RK4(), kwargs...) where {M <: Union{AbstractAutoODEModel, AbstractNeuralODEModel}}
     # initialize underlying Flux model and destructure
     p, re = destructure(model)
 
     # restructure and define ODEProblem
     ode(u, p, t) = re(p)(u, t)
+    tspan = [0, 1]  # dummy tspan, not used TODO: type
+    prob = ODEProblem(ode, model.u₀, tspan, p)
+
+    # wrap in ChaoticNDE
+    return re, ChaoticNDE(prob; alg=alg, kwargs...)
+end
+
+
+# TODO: parametrize
+# TODO: make p0 optional? if m=Dense(), no params needed -> include initialization in ST_SuEIR.constructor
+"""
+ChaoticNDE(model::M; alg=RK4(), kwargs...) where {M <: Union{AbstractAutoODEModel, AbstractNeuralODEModel}}
+
+Utility overload to quickly construct a `ChaoticNDE` from a Flux model.
+
+# Arguments
+- `m`: Custom Flux model type that allows for differentiation of its parameters.
+- `alg`: DE solver used to solve the trajectory.
+- `kwargs`: Additional parameters for initalization of `ChaoticNDE`.
+"""
+function ChaoticNDE(model::M; alg=RK4(), kwargs...) where {M <: Union{AbstractAutoODEModel, AbstractNeuralODEModel}}
+    # initialize underlying Flux model and destructure
+    p, re = destructure(model)
+
+    # restructure and define ODEProblem
+    ode(u, p, t) = re(p)(u, t)
+    tspan = [0, 1]  # dummy tspan, not used TODO: type
     prob = ODEProblem(ode, model.u₀, tspan, p)
 
     # wrap in ChaoticNDE
     return ChaoticNDE(prob; alg=alg, kwargs...)
 end
 
-    # initialize underlying Flux model and destructure
-    model = m(p0...)
-    p, re = destructure(model)
-
-    # restructure and define ODEProblem
-    ode(u, p, t) = re(p)(u, t)
-    prob = ODEProblem(ode, u0, tspan, p)
-
-    # wrap in ChaoticNDE
-    return ChaoticNDE(prob; alg=alg, kwargs...)
-end
 
 """
     loss_covid(I, R, D, p, t; w=t->.√(t), α₁=1, α₂=.5)
 
-Compute the loss as defined in [Wang et al.: Bridging Physics-based and Data-driven modeling for Learning Dynamical Systems](https://arxiv.org/abs/2011.10616)
+Compute the loss as defined in `Wang et al. - Bridging Physics-based and Data-driven modeling for Learning Dynamical Systems`.
 
 # Arguments
 - `û`: Predicted trajectory of shape (N_states, N_ode, t), with the last 3 slices along dimension 2 represent the predicted I, R, D.
 - `u`: True trajectory of shape (N_states, N_ode, t).
 - `t`: Time vector of trajectory.
-** Optional Arguments**
+
 - `w`: Weighting function for loss of respective time steps.
 - `α₁`: Weight of loss w.r.t R
 - `α₂`: Weight of loss w.r.t D
 """
 function loss_covid(û, u, t; w=t->.√((1:length(t))'), α₁=1, α₂=.5, q=.5, σ=mean)
 
-        l_I = @. quantile_regression_loss(u[:, 1, :], û[:, 1, :], q)
-        l_R = @. α₁ * quantile_regression_loss(u[:, 2, :], û[:, 2, :], q)
-        l_D = @. α₂ * quantile_regression_loss(u[:, 3, :], û[:, 3, :], q)
+    l_I = @. quantile_regression_loss(u[:, 1, :], û[:, 1, :], q)
+    l_R = @. α₁ * quantile_regression_loss(u[:, 2, :], û[:, 2, :], q)
+    l_D = @. α₂ * quantile_regression_loss(u[:, 3, :], û[:, 3, :], q)
 
-        weights = w(t)
-        l = @. weights * (l_I + l_R + l_D)
+    weights = w(t)
+    l = @. weights * (l_I + l_R + l_D)
 
-        return σ(l)
-    end
+    return σ(l)
+end
 
 
 """
     quantile_regression_loss(y, ŷ, q=.5)
 
-Calculate the scalar quantile qegression loss as specified in [Wen et al.: A Multi-Horizon Quantile Recurrent Forecaster](https://arxiv.org/abs/1711.11053).
+Calculate the scalar quantile qegression loss as specified in `Wen et al. - A Multi-Horizon Quantile Recurrent Forecaster`.
 """
 function quantile_regression_loss(y, ŷ, q)
-    # println("y $size(y)")
-    # println("ŷ $size(ŷ)")
-    # println("q $size(q)")
     return @. q * max(0, (y - ŷ)) + (1-q) * max(0, (ŷ - y))
 end
-
-
-abstract type AbstractAutoODE end
 
 
 """
@@ -117,16 +117,12 @@ end
 
 
 struct AutoODE_ST_SuEIR{T<:Real} <: AbstractAutoODEModel
-    y₀             # known initial conditions
-    u₀             # unknown, learnable initial conditions
+    y₀::AbstractArray{T}                    # known initial conditions
+    u₀::AbstractArray{T}                    # unknown, learnable initial conditions
 
-    θ                # learnable parameters
-    q
-    # y₀::AbstractArray{T}             # known initial conditions
-    # u₀::AbstractArray{T}             # unknown, learnable initial conditions
+    θ::AbstractArray{Matrix{Float64}}       # learnable parameters
+    q::AbstractArray                        # known parameters
 
-    # θ::AbstractArray{Matrix{Float64}}                # learnable parameters
-    # q::AbstractArray                    # known parameters
 
     # constructor
     function AutoODE_ST_SuEIR(y₀::AbstractArray{T}; q::AbstractArray=[]) where T<:Real
