@@ -13,7 +13,17 @@ makedocs(;
     assets=String[],
     ),
     pages=[
-        "Home" => "index.md",
-        "Second Page" => "second_page.md",
+        "Overview" => "index.md",
+        "Preprocessing" => "preprocessing.md",
+        "ST-SuEIR" => "st_sueir.md",
+        "AutoODE" => "autoode.md",
+        "NeuralODE" => "neuralode.md",
+        "Visualization" => "visualization.md",
+        "Loss" => "loss.md",
+        "Utils" => "utils.md",
     ],
+)
+
+deploydocs(
+    repo = "github.com/ColinMoldenhauer/MMDS.jl.git",
 )
