@@ -25,6 +25,18 @@ function augment_sample(m::AbstractAutoODEModel, x::AbstractArray)
     return reshape(y₀, size(y₀)..., 1)
 end
 
+"""
+    augment_sample(re::Optimisers.Restructure, m::ChaoticNDETools.AbstractChaoticNDEModel, x::AbstractArray)
+
+Use learnable initial conditions of ChaoticNDE object in order for the backpropagation to work properly on the initial conditions, too.
+"""
+function augment_sample(re::Optimisers.Restructure, m::ChaoticNDETools.AbstractChaoticNDEModel, x::AbstractArray)
+    u₀ = re(m.p).u₀
+    x₀ = x[:, :, 1]
+    y₀ = [u₀ x₀]
+    return reshape(y₀, size(y₀)..., 1)
+end
+
 
 """
     save_params(m::ChaoticNDE{P,R,A,K,D}., file::String) where {P,R,A,K,D}
