@@ -17,21 +17,23 @@ function read_covid_data(data_dir::String; normalize::Union{String, Nothing}=not
     df_drop = filter(row -> row["Province_State"] ∉ ["Diamond Princess", "Grand Princess", "Recovered"], df)
     states = df_drop[:, "Province_State"]
 
+    population = nothing
     if ~isnothing(normalize)
         df_pop = CSV.read(normalize, DataFrame)
         rename!(df_pop, Dict("State" => "Province_State", "2018 Population" => "Population"))
+        df_join = outerjoin(df_pop, df_drop, on="Province_State")
+        population = df_join[:, "Population"]
     end
 
     dfs = []
     for file in files
-        # println(file)
         df = CSV.read(joinpath(data_dir, file), DataFrame)
         try
             # filter out rows
             df_drop = filter(row -> row["Province_State"] ∉ ["Diamond Princess", "Grand Princess", "Recovered"], df)
 
 
-            # select only relevant columns
+            # select only relevant columns (use "Province_State" to join population dataframe)
             df_select = df_drop[:, ["Confirmed", "Recovered", "Deaths", "Province_State"]]
 
             # optionally normalize by state population
@@ -50,7 +52,8 @@ function read_covid_data(data_dir::String; normalize::Union{String, Nothing}=not
         end
     end
     df_concat = hcat(dfs..., makeunique=true)
-    return dates, states, df_concat
+
+    return dates, states, population, df_concat
 end
 
 
@@ -61,13 +64,13 @@ Extract infected cases, recovered cases and deaths in chronological order.
 Returns data as matrices of size (N_states, N_epochs).
 """
 function get_covid_IRD(data_dir::String; normalize::Union{String, Nothing}=nothing)
-    dates, states, data = read_covid_data(data_dir, normalize=normalize)
+    dates, states, population, data = read_covid_data(data_dir, normalize=normalize)
 
     infected = data[!, r"Confirmed"]
     recovered = data[!, r"Recovered"]
     deaths = data[!, r"Deaths"]
 
-    return dates, states, Matrix(infected), Matrix(recovered), Matrix(deaths)
+    return dates, states, population, Matrix(infected), Matrix(recovered), Matrix(deaths)
 end
 
 
@@ -78,7 +81,6 @@ end
 Prepare data for wrapping in `NODEDataloader` for later use in ST-SuEIR model.
 Optionally choose a subset of the first N states.
 """
-# TODO: parametrize
 function prepare_data(I, R, D; N_states=nothing, N_ode=3)
     N_t = size(I, 2)
     t = 0:(N_t-1)
@@ -99,7 +101,7 @@ end
 # auxiliary data for ST-SuEIR
 
 """
-Stay-at-home data (dict `stayhome`) for US states and order of states (array 'order_wang_et_al') as specified by Wang et al. in
+Stay-at-home data (dict `stayhome`) for US states and order of states (array `order_wang_et_al`) as specified by Wang et al. in
 https://github.com/Rose-STL-Lab/AutoODE-DSL/blob/master/ode_nn/mobility/Mobility.py
 """
 stayhome = Dict(
@@ -156,6 +158,12 @@ stayhome = Dict(
     "WY" => 28.6
 )
 
+
+"""
+    order_wang_et_al
+
+Order of states as specified by Wang et al.
+"""
 order_wang_et_al = [
     "NY", "NJ", "MA", "MI", "PA",
     "CA", "IL", "FL", "LA", "TX",
@@ -165,7 +173,7 @@ order_wang_et_al = [
     "NV", "MS", "RI", "UT", "OK", "KY",
     "DC", "DE", "IA", "MN", "OR",
     "IN", "AR", "KS", "NM", "NH",
-    # "ID", "AR", "KS", "NM", "NH",-
+    # "ID", "AR", "KS", "NM", "NH",     # replaced potentially faulty double assignment of "Idaho" by missing "Indiana"
     "PR", "SD", "NE", "VT", "ME",
     "WV", "HI", "MT", "ND", "AK",
     "WY", "GU", "VI", "MP", "AS"
@@ -173,9 +181,8 @@ order_wang_et_al = [
 
 
 """
-Utilities to convert and reorder the data given by Wang et al.
+Map a two letter abbreviation to the corresponding US state's/territory's full name.
 """
-# mapping from two letter key abbreviation to the corresponding US state/territory full name
 us_abbr_to_state = Dict(
     "AK" => "Alaska",
     "AS" => "American Samoa",
@@ -235,11 +242,14 @@ us_abbr_to_state = Dict(
     "WY" => "Wyoming"
 )
 
-# mapping from US state/territory to the corresponding two letter key
+"""
+Map a US state/territory to the corresponding two letter abbreviation.
+"""
 us_state_to_abbr = Dict(state => abbr for (abbr, state) in us_abbr_to_state)
 
-
-# alphabetical order of states as used in the covid data
+"""
+Alphabetical order of states as used in the covid data.
+"""
 order_covid_data = [
     "Alabama",
     "Alaska",
@@ -299,7 +309,7 @@ order_covid_data = [
     "Wyoming"
 ]
 
-# corresponding order of abbreviations
+"""Alphabetical order of abbreviations."""
 order_covid_data_abbrs = [us_state_to_abbr[state] for state in order_covid_data]
 
 
