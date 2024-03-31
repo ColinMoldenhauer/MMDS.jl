@@ -30,8 +30,8 @@ run_dir = "../runs/autoode_sample_$(train_idx)_epochs_$(N_epochs)_seed_$seed"
 
 checkpoint_file = "checkpoints.jld"
 
-data_dir = "../../covid_data/csse_covid_19_data/csse_covid_19_daily_reports_us"
-pop_file = "../../AutoODE-DSL/ode_nn/population_states.csv"
+data_dir = "../data/csse_covid_19_daily_reports_us"
+pop_file = "../data/population_states.csv"
 
 N_states = 56
 L_train = 10        # input sequence length
@@ -110,74 +110,34 @@ params_history = zeros(N_epochs, length(model.p))
 t0_train = now()
 
 
-function myloss(m::ChaoticNDE, t::Vector{T2}, x::Matrix{T}) where {T <: Real, T2 <: Int}
-    x_augm = augment_sample(re_st_sueir, m, x)
-    pred = m((t, x_augm))
-    pred_IRD = pred[:, 4:6, :]
-    return loss(pred_IRD, x, t)
-end
-
-@code_warntype myloss(model, t_train, x_train)
-
-
-
-
-loss_train = 23.3
-
 eval_T = 1
-i_e = 23
 for i_e = 1:N_epochs
 
     t0_epoch = now()
 
-    # try     # sometimes, maxiter of the ODE solver is reached
-        # Flux.train!(model, [(t_train, x_train)], optim) do m, t, x
-        #     x_augm = augment_sample(re_st_sueir, m, x)
-        #     pred = m((t, x_augm))
-        #     pred_IRD = pred[:, 4:6, :]
-        #     return loss(pred_IRD, x, t)
-        # end
-        loss_train, grads = Flux.withgradient(model) do m
-            x_augm = augment_sample(re_st_sueir, m, x_train)
-            pred = m((t_train, x_augm))
-            pred_IRD = pred[:, 4:6, :]
-            return loss(pred_IRD, x_train, t_train)
-        end
-        t1_epoch = now()
-        optim2, model2 = Flux.update!(optim, model, grads[1])
-        t2_epoch = now()
+    loss_train, grads = Flux.withgradient(model) do m
+        x_augm = augment_sample(re_st_sueir, m, x_train)
+        pred = m((t_train, x_augm))
+        pred_IRD = pred[:, 4:6, :]
+        return loss(pred_IRD, x_train, t_train)
+    end
+    t1_epoch = now()
+    # optim2, model2 = Flux.update!(optim, model, grads[1])
+    t2_epoch = now()
 
 
-        params_history[i_e, :] = model.p
+    params_history[i_e, :] = model.p
 
-        # collect loss metric
-        losses_train[i_e] = loss_train
+    # collect loss metric
+    losses_train[i_e] = loss_train
 
-        if (i_e % 20) == 0  # reduce the learning rate every 20
-            global η /= 2
-            Optimisers.adjust!(optim, η)
-        end
-        if (i_e % eval_T) == 0  # log training progress
-            # @info """Epoch $i_e \t train loss = $(@sprintf("%5.3f", loss_train))   η = $η   t = $(t2_epoch-t0_epoch)   t_avg = $(typeof(now()-t0_train)(Int(round((now()-t0_train).value/i_e))))"""
-            println("Epoch $i_e \t train loss = $(@sprintf("%5.3f", loss_train))   η = $η   t = $(t2_epoch-t0_epoch)   t_avg = $(typeof(now()-t0_train)(Int(round((now()-t0_train).value/i_e))))")
-            # @info """Times  t_epoch = $(t2_epoch-t0_epoch)    t_fwd = $(t1_epoch-t0_epoch)   t_bckwd = $(t2_epoch-t1_epoch)"""
-        end
-
-        # "validation"
-        # if (i_e % eval_T) == 0  # calculate loss for validation set?
-        #     pred_val = model((t, x_augm))
-        #     pred_val_IRD = pred_val[:, 4:6, :]
-        #     loss_val = loss(pred_val_IRD, x, t)
-        #     losses_val[i_e] = loss_val
-        #     # @info """\t\t val   loss = $(@sprintf("%5.3f", loss_val))"""
-        #     println("\t\t val   loss = $(@sprintf("%5.3f", loss_val))")
-        # end
-    # catch e
-    #     println("Caught error while training (epoch $i_e)")
-    #     println(e)
-    #     continue
-    # end
-
+    if (i_e % 20) == 0  # reduce the learning rate every 20
+        global η /= 2
+        Optimisers.adjust!(optim, η)
+    end
+    if (i_e % eval_T) == 0  # log training progress
+        println("Epoch $i_e \t train loss = $(@sprintf("%5.3f", loss_train))   η = $η   t = $(t2_epoch-t0_epoch)   t_avg = $(typeof(now()-t0_train)(Int(round((now()-t0_train).value/i_e))))")
+    end
 end
 
 println("Finished training for sample $(train_idx): $N_epochs epochs after $(now()-t0_train) ($(typeof(now()-t0_train)(Int(round((now()-t0_train).value/N_epochs))))/epoch)")
