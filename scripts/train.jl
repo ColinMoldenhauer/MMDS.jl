@@ -1,5 +1,8 @@
 using Pkg
 Pkg.activate("..")
+Pkg.add(url=raw"https://github.com/maximilian-gelbrecht/ChaoticNDETools.jl")
+Pkg.add(url=raw"https://github.com/maximilian-gelbrecht/NODEData.jl")
+Pkg.instantiate()
 
 using Revise
 
