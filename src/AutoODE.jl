@@ -97,7 +97,7 @@ function wrap_model(model::M; alg=RK4(), kwargs...) where {M <: Union{AbstractAu
 
     # restructure and define ODEProblem
     ode(u, p, t) = re(p)(u, t)
-    tspan = eltype(st.y₀).((0, 1))  # dummy tspan, will be overwritten in forward call of ChaoticNDE
+    tspan = eltype(model.y₀).((0, 1))  # dummy tspan, will be overwritten in forward call of ChaoticNDE
     prob = ODEProblem(ode, model.u₀, tspan, p)
 
     # wrap in ChaoticNDE
@@ -115,14 +115,28 @@ Utility overload to quickly construct a `ChaoticNDE` from a Flux model.
 - `alg`: DE solver used to solve the trajectory.
 - `kwargs`: Additional parameters for initalization of `ChaoticNDE`.
 """
-function ChaoticNDE(model::M; alg=RK4(), kwargs...) where {M <: Union{AbstractAutoODEModel, AbstractNeuralODEModel}}
+function ChaoticNDE(model::AbstractAutoODEModel; alg=RK4(), kwargs...)
     # initialize underlying Flux model and destructure
     p, re = destructure(model)
 
     # restructure and define ODEProblem
     ode(u, p, t) = re(p)(u, t)
-    tspan = eltype(st.y₀).((0, 1))  # dummy tspan, will be overwritten in forward call of ChaoticNDE
+    tspan = eltype(model.y₀).((0, 1))  # dummy tspan, will be overwritten in forward call of ChaoticNDE
     prob = ODEProblem(ode, model.u₀, tspan, p)
+
+    # wrap in ChaoticNDE
+    return ChaoticNDE(prob; alg=alg, kwargs...)
+end
+
+function ChaoticNDE(model::AbstractNeuralODEModel; alg=RK4(), kwargs...)
+    # initialize underlying Flux model and destructure
+    p, re = destructure(model)
+
+    # restructure and define ODEProblem
+    ode(u, p, t) = re(p)(u, t)
+    tspan = Float64.((0, 1))  # dummy tspan, will be overwritten in forward call of ChaoticNDE
+    u0 = ones(Float64, model.dims...)
+    prob = ODEProblem(ode, u0, tspan, p)
 
     # wrap in ChaoticNDE
     return ChaoticNDE(prob; alg=alg, kwargs...)
