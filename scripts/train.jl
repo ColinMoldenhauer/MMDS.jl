@@ -122,7 +122,7 @@ for i_e = 1:N_epochs
         return loss(pred_IRD, x_train, t_train)
     end
     t1_epoch = now()
-    # optim2, model2 = Flux.update!(optim, model, grads[1])
+    Flux.update!(optim, model, grads[1])
     t2_epoch = now()
 
 
