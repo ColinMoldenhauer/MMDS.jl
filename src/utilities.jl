@@ -18,7 +18,7 @@ Append learnable initial conditions u₀ to known initial conditions as included
 in the covid data x. Extend the last dimension to support the automatic extraction
 of the initial conditions in ChaoticNDE().
 """
-function augment_sample(m::AbstractAutoODEModel, x::AbstractArray)
+function augment_sample(m::AbstractAutoODEModel, x::AbstractArray{T}) where T
     u₀ = m.u₀
     x₀ = x[:, :, 1]
     y₀ = [u₀ x₀]
@@ -30,7 +30,7 @@ end
 
 Use learnable initial conditions of ChaoticNDE object in order for the backpropagation to work properly on the initial conditions, too.
 """
-function augment_sample(re::Optimisers.Restructure, m::ChaoticNDETools.AbstractChaoticNDEModel, x::AbstractArray)
+function augment_sample(re::Optimisers.Restructure, m::ChaoticNDETools.AbstractChaoticNDEModel, x::AbstractArray{T}) where T
     u₀ = re(m.p).u₀
     x₀ = x[:, :, 1]
     y₀ = [u₀ x₀]
@@ -56,4 +56,13 @@ Load the parameters of model `m` saved to file.
 function load_params(m::ChaoticNDE{P,R,A,K,D}, file::String) where {P,R,A,K,D}
     p = load(file)["p"]
     set_params!(m, p)
+end
+
+using Statistics
+
+function compute_MAE(u_true, u_pred, L_train=0)
+    println("slice $(size(u_true[:, :, L_train+1:end]))")
+    abs_diff = abs.(u_true[:, :, L_train+1:end] .- u_pred[:, :, L_train+1:end])
+    mae = mean(abs_diff, dims=[1,3])
+    return mae
 end

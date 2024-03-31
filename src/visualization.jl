@@ -53,10 +53,12 @@ end
 Plot a ground truth sequence and an arbitrary number of predicted trajectories.
 """
 function plot_sequence(u_true, û...; state_index=1, t=nothing, labels=nothing, colors=nothing, L_train=nothing, height=300, kwargs...)
+    @assert all([size(u_true) == size(u_) for u_ in û])
 
     t = isnothing(t) ? (0:size(u_true, ndims(u_true))-1) : t
     labels = isnothing(labels) ? ["model $i" for i in 1:length(û)] : labels
-    colors = isnothing(colors) ? palette(:default)[1:length(û)]' : colors
+    # colors = isnothing(colors) ? palette(:default)[1:length(û)]' : colors
+    colors = isnothing(colors) ? palette(:default)[1:length(û)]' : (colors isa Array ? colors : [colors])
     vlines = isnothing(L_train) ? [] : (L_train isa Array ? L_train : [L_train])
 
     l = @layout [a b c]
