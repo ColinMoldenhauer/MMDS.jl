@@ -8,6 +8,17 @@ import Base: display, show
 - decoder: neural network with one hidden layer with 20 hidden units
 """
 
+
+
+"""AbstractNeuralODEModel"""
+abstract type AbstractNeuralODEModel end
+
+
+"""
+    LatentODE
+
+The LatentODE model as implemented by `Wang et al. - Bridging Physics-based and Data-driven modeling for Learning Dynamical Systems`.
+"""
 struct LatentODE
     obs_dim::Int
     latent_dim::Int
@@ -99,6 +110,9 @@ struct LatentODERecognition
 end
 
 # define forward pass
+# ST_SuEIR: (n_states, n_ode (6), t)
+# LatentODE: (1 state?, n_ode (3?), t)
+# NeuralODE: ??
 function (r::LatentODERecognition)(x)
     y = [r.rnn(x_) for x_ in eachcol(x)]
     return r.linear(y[end])
@@ -170,6 +184,11 @@ Flux.@layer LatentODEDecoder
 
 
 
+"""
+    NeuralODE
+
+The linear encode variant of the NeuralODE implementation of `Wang et al. - Bridging Physics-based and Data-driven modeling for Learning Dynamical Systems`.
+"""
 struct NeuralODE
     input_length::Int
     input_dim::Int
@@ -202,7 +221,11 @@ Flux.@layer NeuralODE
 
 
 
+"""
+    NeuralODE_LSTM
 
+The LSTM encoder variant of the NeuralODE implementation of `Wang et al. - Bridging Physics-based and Data-driven modeling for Learning Dynamical Systems`.
+"""
 struct NeuralODE_LSTM
     input_length::Int
     input_dim::Int
@@ -232,7 +255,7 @@ end
 Flux.@layer NeuralODE_LSTM
 
 
-
+# TODO: output 4D or 3D (which ODE if 3D??)
 function f_SEIR(u, p, t)
     S, E, I, R = eachcol(u)
     println("S $(size(S))")
@@ -249,4 +272,54 @@ function f_SEIR(u, p, t)
     println("size(u)  $(size(u))")
     println("size(du)  $(size(du))")
     return du
+end
+
+"""
+A simple neural ODE as coined by [Chen et al.: Neural Differential Equations](TODO: link).
+Models the RHS of an ODE by means of a neural network. Can be used by general ODE solvers.
+"""
+struct SimpleNeuralODE <: AbstractNeuralODEModel
+
+    dims::AbstractArray{Int}
+
+    chain::Flux.Chain
+
+    # default constructor
+    function SimpleNeuralODE(dims::AbstractArray{Int}; hidden_dims::AbstractArray{Int}=[128, 256, 512, 256, 128], σ::Function=Flux.relu)
+        chain = Chain(
+            Dense(prod(dims) => hidden_dims[1]), σ,
+            [Flux.Chain(Dense(in => out), σ) for (in, out) in zip(hidden_dims[1:end-1], hidden_dims[2:end])]...,
+            Dense(hidden_dims[end] => prod(dims))
+        ) |> f64
+
+        return new(dims, chain)
+    end
+
+    # constructor for restructuring
+    function SimpleNeuralODE(dims::AbstractArray{Int}, chain::Flux.Chain)
+        return new(dims, chain)
+    end
+end
+
+@Flux.layer SimpleNeuralODE trainable=(chain,)
+
+flatten_all(x) = reshape(x, :)
+
+# TODO: reshape supported by Zygote?
+
+function (s::SimpleNeuralODE)(x; flatten=true)
+    if flatten
+        x = flatten_all(x)
+    end
+    pred = s.chain(x)
+    return reshape(pred, s.dims...)
+end
+
+# forward
+function (s::SimpleNeuralODE)(x, t; flatten=true)
+    if flatten
+        x = flatten_all(x)
+    end
+    pred = s.chain(x)
+    return reshape(pred, s.dims...)
 end
